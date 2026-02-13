@@ -130,15 +130,16 @@ const exampleCrate = "{\n" +
     "    ]\n" +
     "}"
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const incomingMessageSchema = z.xor([
     z.object({
         target: z.literal("novacrate"),
-        type: z.literal("PUSH_CRATE"),
-        metadata: z.optional(z.string())
+        type: z.literal("LOAD_CRATE"),
+        metadata: z.string()
     }),
     z.object({
         target: z.literal("novacrate"),
-        type: z.literal("PULL_CRATE")
+        type: z.literal("GET_CRATE")
     })
 ])
 
@@ -151,13 +152,17 @@ const outgoingMessageSchema = z.xor([
     }),
     z.object({
         source: z.literal("novacrate"),
-        type: z.literal("PULL_CRATE_RESPONSE"),
-        metadata: z.optional(z.string())
+        type: z.literal("GET_CRATE_RESPONSE"),
+        metadata: z.string()
+    }),
+    z.object({
+        source: z.literal("novacrate"),
+        type: z.literal("CRATE_CHANGED"),
+        metadata: z.string()
     })
 ])
 
 type NovaCrateMessageIncoming = z.infer<typeof incomingMessageSchema>
-type NovaCrateMessageOutgoing = z.infer<typeof outgoingMessageSchema>
 
 function App() {
     const iframe = useRef<HTMLIFrameElement>(null);
@@ -165,8 +170,15 @@ function App() {
     const pushCrate = useCallback(() => {
         iframe.current?.contentWindow?.postMessage({
             target: "novacrate",
-            type: "PUSH_CRATE",
+            type: "LOAD_CRATE",
             metadata: exampleCrate
+        } satisfies NovaCrateMessageIncoming, "http://localhost:3000", [])
+    }, []);
+
+    const pullCrate = useCallback(() => {
+        iframe.current?.contentWindow?.postMessage({
+            target: "novacrate",
+            type: "GET_CRATE",
         } satisfies NovaCrateMessageIncoming, "http://localhost:3000", [])
     }, []);
 
@@ -176,6 +188,8 @@ function App() {
             if (parsed.success) {
                 if (parsed.data.type === "READY") {
                     pushCrate()
+                } else if (parsed.data.type === "GET_CRATE_RESPONSE") {
+                    console.log("Received metadata", parsed.data.metadata)
                 }
             }
         }
@@ -186,9 +200,13 @@ function App() {
 
     return (
         <div>
-            <iframe ref={iframe} width={1400} height={700} src="http://localhost:3000/editor/iframe/entities"/>
-            <button onClick={pushCrate}>Push Crate</button>
-            <button>Pull Crate</button>
+            This demo integrates NovaCrate in Iframe mode and loads the crate "Air measurements in Karlsruhe" immediately once NovaCrate sends the READY message. Additional messages can be sent using the buttons below.
+            <iframe ref={iframe} width={1280} height={700} src="http://localhost:3000/editor/iframe/entities"/>
+            <div style={{padding: 5}}>
+                <button style={{marginRight: 5}} onClick={pushCrate}>Push Crate</button>
+                <button onClick={pullCrate}>Pull Crate</button>
+            </div>
+
         </div>
     )
 }
